@@ -1,0 +1,17 @@
+[package]
+name = "RCT"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+log = "0.4.21"
+simple_logger = "5.0.0"
+serde = { version = "1.0.202", features = ["derive"] }
+serde_json = "1.0.117"
+
+macroquad = "0.4.5"
+rodio = "0.18"
+
+image = "0.25.1"
+
+fastblur = "0.1.1"
