@@ -50,7 +50,7 @@ pub struct Chart {
     pub note: Vec<Note>,
     pub speed_distance: Vec<SpeedDistance>,
     pub trail_distance: Vec<TrailDistance>,
-    pub single_trail_distance: Vec<TrailDistance>,
+    // pub single_trail_distance: Vec<TrailDistance>,
 }
 
 
@@ -121,7 +121,7 @@ impl Chart {
             note: Vec::new(),
             speed_distance: Vec::new(),
             trail_distance: Vec::new(),
-            single_trail_distance: Vec::new(),
+            // single_trail_distance: Vec::new(),
         }
     }
 
@@ -277,15 +277,15 @@ impl Chart {
             }
         });
 
-        self.single_trail_distance.sort_by(|a: &TrailDistance, b: &TrailDistance| {
-            if a.distance < b.distance {
-                std::cmp::Ordering::Less
-            } else if a.distance == b.distance {
-                a.time.partial_cmp(&b.time).unwrap()
-            } else {
-                std::cmp::Ordering::Greater
-            }
-        });
+        // self.single_trail_distance.sort_by(|a: &TrailDistance, b: &TrailDistance| {
+        //     if a.distance < b.distance {
+        //         std::cmp::Ordering::Less
+        //     } else if a.distance == b.distance {
+        //         a.time.partial_cmp(&b.time).unwrap()
+        //     } else {
+        //         std::cmp::Ordering::Greater
+        //     }
+        // });
     }
 
     // 这个函数的作用是根据实际时间计算谱面时间
@@ -459,6 +459,11 @@ impl Chart {
         let (mut d1, mut d2, mut t1, mut t2, mut v1, mut v2): (f32, f32, f32, f32, f32, f32);
     
         p1 = self.find_pos_by_distance(&self.speed_distance, distance, 1);
+
+        while p1 < self.speed_distance.len() && self.speed_distance[p1].speed == 0.0 {
+            p1 += 1;
+        }
+
         d1 = self.speed_distance[p1].distance;
         t1 = self.speed_distance[p1].time;
         v1 = self.speed_distance[p1].speed;
@@ -472,6 +477,11 @@ impl Chart {
         } else {
             t1 + ((distance - d1) / v1)
         }
+    }
+
+    pub fn find_speed_by_time(&self, time: f32) -> f32 {
+        let mut p1: usize = self.find_pos_by_time(&self.speed, time, 1);
+        self.speed[p1].speed
     }
 
     // 这个函数的作用是根据积分找到对应的数组下标，其中mode的值有四种情况
@@ -616,34 +626,14 @@ impl Chart {
             }
         }
 
-        self.single_trail_distance.push(self.trail_distance[0]);
-        let mut last_trail: TrailDistance = self.trail_distance[0];
-        let mut this_trail: TrailDistance;
-        for i in 1..self.trail_distance.len(){
-            this_trail = self.trail_distance[i];
-            let mut degree1: f32 = last_trail.degree + last_trail.delta;
-            let mut degree2: f32 = this_trail.degree;
-            let degree3: f32 = (degree2 + 180.0) % 360.0;
-            let mut diff2 = ((degree2 - degree1 + 180.0) % 360.0 - 180.0).abs();
-            if diff2 > 180.0 {
-                diff2 = 360.0 - diff2;
-            }
+        let start = self.trail_distance.first().unwrap();
+        let trail_distance: TrailDistance = TrailDistance::new(0.0, start.degree, 0.0, start.prev_curv, start.next_curv, 0.0);
+        self.trail_distance.insert(0, trail_distance);
 
-            let mut diff3 = ((degree3 - degree1 + 180.0) % 360.0 - 180.0).abs();
-            if diff3 > 180.0 {
-                diff3 = 360.0 - diff3;
-            }
-            // degree1 = 15  degree2 = 345  degree3 = 165
-            // degree1 = 205  degree2 = 165  degree3 = 345
-            if diff2 < diff3{
-                self.single_trail_distance.push(this_trail);
-                last_trail = this_trail;
-            }
-            else{
-                this_trail.degree = degree3;
-                self.single_trail_distance.push(this_trail);
-            }
-        }
+        let last = self.trail_distance.last().unwrap();
+        let distance: f32 = self.find_distance_by_time(last.time + 10000.0);
+        let trail_distance: TrailDistance = TrailDistance::new(last.time + 10000.0, last.degree + last.delta, 0.0, last.prev_curv, last.next_curv, distance);
+        self.trail_distance.push(trail_distance);
 
         self.sort_chart();
     }
@@ -681,6 +671,67 @@ impl Chart {
         calculate_y(time) * (end - start) + start
     }
 
+    pub fn find_degree_by_2_trails(&self, mut trail1: TrailDistance, mut trail2: TrailDistance, progress: f32) -> f32 {
+        let calculate_delta = |degree1: f32, degree2: f32| {
+            let mut delta = (degree1 - degree2).abs() % 360.0;
+            if delta > 180.0 {
+                delta = 360.0 - delta;
+            }
+            delta
+        };
+
+        let mut time1: f32;
+        let mut time2: f32;
+        let mut degree1: f32;
+        let mut degree2: f32;
+        let mut curvature1: f32;
+        let mut curvature2: f32;
+        let mut result: f32;
+        // 聊天记录：这个我知道是什么原因了 应该是if abs(正常点-上一个点) < abs(对称点-上一个点)  走正常点 else 走对称点
+        // 首先，找到两个trail相距角度最小的一边
+        degree1 = trail1.degree + trail1.delta;
+        degree2 = trail2.degree;
+        if calculate_delta(degree2, degree1) < calculate_delta(degree2 + 180.0, degree1){
+            degree2 += 180.0;
+            degree2 = degree2 % 360.0;
+        }
+        time1 = trail1.time;
+        time2 = trail2.time;
+        curvature1 = trail1.next_curv;
+        curvature2 = trail2.prev_curv;
+        // 获取基础信息
+        // 处理角度
+        degree1 = degree1 % 360.0;
+        if degree1 < 0.0 {
+            degree1 += 360.0;
+        }
+        degree2 = degree2 % 360.0;
+        if degree2 < 0.0 {
+            degree2 += 360.0;
+        }
+
+        if degree1 >= 180.0 {
+            if (degree1 - (degree2 + 360.0)).abs() <= 90.0 {
+                degree2 += 360.0;
+            } else if (degree1 - (degree2 + 180.0)).abs() <= 90.0 {
+                degree2 += 180.0;
+            } else if (degree1 - (degree2 - 180.0)).abs() <= 90.0 {
+                degree2 -= 180.0;
+            }
+        } else {
+            if (degree1 - (degree2 - 360.0)).abs() < 90.0 {
+                degree2 -= 360.0;
+            } else if (degree1 - (degree2 - 180.0)).abs() < 90.0 {
+                degree2 -= 180.0;
+            } else if (degree1 - (degree2 + 180.0)).abs() < 90.0 {
+                degree2 += 180.0;
+            }
+        }
+
+        result = self.get_y_from_x(degree1, degree2, curvature1 / 100.0, curvature2 / 100.0, progress);
+        return result;
+    }
+
     pub fn find_degree_by_time(&self, time: f32) -> f32 {
         let mut position1: usize;
         let mut position2: usize;
@@ -695,19 +746,22 @@ impl Chart {
         let mut curvature2: f32;
         let mut result: f32;
         distance = self.find_distance_by_time(time);
-        position1 = self.find_pos_by_distance(&self.single_trail_distance, distance, 1);
+        position1 = self.find_pos_by_distance(&self.trail_distance, distance, 1);
         position2 = position1 + 1;
         
-        time1 = self.single_trail_distance[position1].time;
-        distance1 = self.single_trail_distance[position1].distance;
-        degree1 = self.single_trail_distance[position1].degree + self.single_trail_distance[position1].delta;
-        curvature1 = self.single_trail_distance[position1].next_curv;
+        time1 = self.trail_distance[position1].time;
+        if time <= time1{
+            return self.trail_distance[position1].degree;
+        }
+        distance1 = self.trail_distance[position1].distance;
+        degree1 = self.trail_distance[position1].degree + self.trail_distance[position1].delta;
+        curvature1 = self.trail_distance[position1].next_curv;
 
-        if position2 < self.single_trail_distance.len() {
-            time2 = self.single_trail_distance[position2].time;
-            distance2 = self.single_trail_distance[position2].distance;
-            degree2 = self.single_trail_distance[position2].degree;
-            curvature2 = self.single_trail_distance[position2].prev_curv;
+        if position2 < self.trail_distance.len() {
+            time2 = self.trail_distance[position2].time;
+            distance2 = self.trail_distance[position2].distance;
+            degree2 = self.trail_distance[position2].degree;
+            curvature2 = self.trail_distance[position2].prev_curv;
             
             degree1 = degree1 % 360.0;
             if degree1 < 0.0 {
@@ -736,10 +790,6 @@ impl Chart {
                 }
             }
 
-            // if time >= 55560.0 && time <=55603.0{
-            // println!("time: {:?}, Degree1: {:?} Degree2: {:?}", time, degree1, degree2);
-            // }
-
             result = self.get_y_from_x(degree1, degree2, curvature1 / 100.0, curvature2 / 100.0, (distance - distance1) / (distance2 - distance1));
             // result = result % 180.0;
         } else {
@@ -748,6 +798,7 @@ impl Chart {
         if result < 0.0 {
             result += 360.0;
         }
+        result = result % 180.0;
         result
     }
 
