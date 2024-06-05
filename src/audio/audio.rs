@@ -10,7 +10,7 @@ use super::buffer_player::SamplesBuffer;
 use super::buffer_player::AudioController;
 
 pub struct AudioManager {
-    controller: Arc<AudioController<i16>>,
+    pub controller: Arc<AudioController<i16>>,
     speed: f32,
     duration: f32, // in seconds
     is_playing: bool,

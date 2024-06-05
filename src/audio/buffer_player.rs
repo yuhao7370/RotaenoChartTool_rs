@@ -7,7 +7,7 @@ use std::{
 
 /// A buffer of samples treated as a source.
 pub struct SamplesBuffer<S> {
-    data: Vec<S>,
+    pub data: Vec<S>,
     channels: u16,
     sample_rate: u32,
     duration: Duration,
@@ -50,6 +50,11 @@ where
     pub fn get_duration(&self) -> Duration {
         self.duration
     }
+
+    pub fn get_sample_rate(&self) -> u32{
+        self.sample_rate
+    
+    }
 }
 
 impl SamplesBuffer<i16> {
@@ -58,7 +63,7 @@ impl SamplesBuffer<i16> {
         stop_loading: Arc<RwLock<bool>>,
         progress: Arc<RwLock<f32>>,
     ) -> Result<Self, String> {
-        let mut decoder = Decoder::new(std::io::BufReader::new(
+        let mut decoder: Decoder<std::io::BufReader<std::fs::File>> = Decoder::new(std::io::BufReader::new(
             std::fs::File::open(path).map_err(|e| format!("error opening file: {:?}", e))?,
         ))
         .map_err(|e| format!("error decode audio: {:?}", e))?;
