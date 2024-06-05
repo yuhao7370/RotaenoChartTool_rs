@@ -468,6 +468,10 @@ impl Chart {
         t1 = self.speed_distance[p1].time;
         v1 = self.speed_distance[p1].speed;
         p2 = p1 + 1;
+
+        while p2 < self.speed_distance.len() && self.speed_distance[p2].time == self.speed_distance[p1].time {
+            p2 += 1;  
+        }
     
         if p2 < self.speed_distance.len() && self.speed_distance[p2].smooth == 1 {
             d2 = self.speed_distance[p2].distance;
@@ -626,9 +630,11 @@ impl Chart {
             }
         }
 
-        let start = self.trail_distance.first().unwrap();
-        let trail_distance: TrailDistance = TrailDistance::new(0.0, start.degree, 0.0, start.prev_curv, start.next_curv, 0.0);
-        self.trail_distance.insert(0, trail_distance);
+        if self.trail_distance[0].time != 0.0 {
+            let start = self.trail_distance.first().unwrap();
+            let trail_distance: TrailDistance = TrailDistance::new(0.0, start.degree, 0.0, start.prev_curv, start.next_curv, 0.0);
+            self.trail_distance.insert(0, trail_distance);
+        }
 
         let last = self.trail_distance.last().unwrap();
         let distance: f32 = self.find_distance_by_time(last.time + 10000.0);

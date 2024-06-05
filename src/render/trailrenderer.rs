@@ -15,13 +15,15 @@ pub fn dwaw_arc(x: f32, y: f32, radius: f32, start: f32, end: f32, thickness: f3
 pub fn distance_to_radius(max_radius: f32, distance: f32, start_distance: f32, end_distance: f32) -> f32 {
     let x: f32 = (distance - start_distance) / (end_distance - start_distance); //还有%多少到判定区
 
-    fn exp_func(x: f32) -> f32 {
-        let b = (0.1f32).ln();
-        let k = 1.0;
-        std::f32::consts::E.powf(k * b * x)
+    let x1 = 1.0 - x;
+
+    fn func(x: f32) -> f32 {
+        let (a, b, c, d) = (1.4354973119363346,1.7027444700980798,1.154638454723781,-0.11566204049406854);
+    
+        a * (b * (x - c)).exp() + d
     }
     
-    max_radius * exp_func(x) // 使用 powf 函数的倒数来实现变化率随 (distance - start_distance) 减小而增大
+    max_radius * func(x1) // 使用 powf 函数的倒数来实现变化率随 (distance - start_distance) 减小而增大
 }
 
 pub fn draw_trail(chart: &Chart, start_distance: f32, end_distance: f32, debug: bool){
@@ -154,7 +156,7 @@ pub fn draw_trail(chart: &Chart, start_distance: f32, end_distance: f32, debug: 
     for i in 0..chart.note.len() {
         // continue;
         let note = &chart.note[i];
-        if note.get_time() < start_chart_time || note.get_time() > end_chart_time{
+        if chart.find_distance_by_time(note.get_time()) < start_distance || chart.find_distance_by_time(note.get_time()) > end_distance{
             continue;
         }
         match note {
