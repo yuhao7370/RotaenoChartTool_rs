@@ -50,6 +50,7 @@ pub struct Chart {
     pub note: Vec<Note>,
     pub speed_distance: Vec<SpeedDistance>,
     pub trail_distance: Vec<TrailDistance>,
+    pub phone_trail_distance: Vec<TrailDistance>,
     // pub single_trail_distance: Vec<TrailDistance>,
 }
 
@@ -121,6 +122,7 @@ impl Chart {
             note: Vec::new(),
             speed_distance: Vec::new(),
             trail_distance: Vec::new(),
+            phone_trail_distance: Vec::new(),
             // single_trail_distance: Vec::new(),
         }
     }
@@ -277,15 +279,15 @@ impl Chart {
             }
         });
 
-        // self.single_trail_distance.sort_by(|a: &TrailDistance, b: &TrailDistance| {
-        //     if a.distance < b.distance {
-        //         std::cmp::Ordering::Less
-        //     } else if a.distance == b.distance {
-        //         a.time.partial_cmp(&b.time).unwrap()
-        //     } else {
-        //         std::cmp::Ordering::Greater
-        //     }
-        // });
+        self.phone_trail_distance.sort_by(|a: &TrailDistance, b: &TrailDistance| {
+            if a.distance < b.distance {
+                std::cmp::Ordering::Less
+            } else if a.distance == b.distance {
+                a.time.partial_cmp(&b.time).unwrap()
+            } else {
+                std::cmp::Ordering::Greater
+            }
+        });
     }
 
     // 这个函数的作用是根据实际时间计算谱面时间
@@ -609,11 +611,6 @@ impl Chart {
                 let distance: f32 = self.find_distance_by_time(trail.time);
                 let trail_distance: TrailDistance = TrailDistance::new(trail.time, trail.degree, trail.delta, trail.prev_curv, trail.next_curv, distance);
                 self.trail_distance.push(trail_distance);
-                // if trail.delta != 0.0{
-                //     let distance: f32 = self.find_distance_by_time(trail.time + 1.0);
-                //     let trail_distance: TrailDistance = TrailDistance::new(trail.time + 1.0, trail.degree + trail.delta, 0.0, 0.0, 0.0, distance);
-                //     self.trail_distance.push(trail_distance);
-                // }
                 continue;
             }
 
@@ -621,13 +618,9 @@ impl Chart {
                 let distance: f32 = self.find_distance_by_time(rotate.time);
                 let trail_distance: TrailDistance = TrailDistance::new(rotate.time, rotate.degree, rotate.delta, rotate.prev_curv, rotate.next_curv, distance);
                 self.trail_distance.push(trail_distance);
-                // if rotate.delta != 0.0{
-                //     let distance: f32 = self.find_distance_by_time(rotate.time + 1.0);
-                //     let trail_distance: TrailDistance = TrailDistance::new(rotate.time + 1.0, rotate.degree + rotate.delta, 0.0, 0.0, 0.0, distance);
-                //     self.trail_distance.push(trail_distance);
-                // }
                 continue;
             }
+
         }
 
         if self.trail_distance[0].time != 0.0 {
@@ -637,9 +630,85 @@ impl Chart {
         }
 
         let last = self.trail_distance.last().unwrap();
-        let distance: f32 = self.find_distance_by_time(last.time + 10000.0);
-        let trail_distance: TrailDistance = TrailDistance::new(last.time + 10000.0, last.degree + last.delta, 0.0, last.prev_curv, last.next_curv, distance);
+        let distance: f32 = self.find_distance_by_time(last.time + 50000.0);
+        let trail_distance: TrailDistance = TrailDistance::new(last.time + 50000.0, last.degree + last.delta, 0.0, last.prev_curv, last.next_curv, distance);
         self.trail_distance.push(trail_distance);
+
+        //计算手机怎么转 还有点瑕疵
+        let mut flag: bool = false;
+        for i in 0..self.note.len(){
+            flag = false;
+            let note = &self.note[i];
+            let time = note.get_time();
+            for j in 0..3{
+                if i + j >= self.note.len(){
+                    break;
+                }
+                let temp = &self.note[j + i];
+                if temp.get_time() - time > 100.0{
+                    break;
+                }
+                if let Note::Catch(catch) = temp{
+                    let distance: f32 = self.find_distance_by_time(catch.time);
+                    let degree = self.find_degree_by_time(catch.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(catch.time, degree, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                    flag = true;
+                    break;
+                }
+            }
+            if flag{
+                continue;
+            }
+            match note{
+                Note::Catch(catch) => {
+                    let distance: f32 = self.find_distance_by_time(catch.time);
+                    let degree = self.find_degree_by_time(catch.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(catch.time, degree, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                }
+                Note::Tap(tap) => {
+                    let distance: f32 = self.find_distance_by_time(tap.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(tap.time, tap.degree % 180.0, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                }
+                Note::Flick(flick) => {
+                    let distance: f32 = self.find_distance_by_time(flick.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(flick.time, flick.degree % 180.0, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                }
+                Note::Slide(slide) => {
+                    let distance: f32 = self.find_distance_by_time(slide.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(slide.time, slide.degree % 180.0, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                }
+                Note::Bomb(bomb) => {
+                    let distance: f32 = self.find_distance_by_time(bomb.time);
+                    let degree = self.find_degree_by_time(bomb.time);
+                    let trail_distance: TrailDistance = TrailDistance::new(bomb.time, degree % 180.0, 0.0, 0.0, 0.0, distance);
+                    self.phone_trail_distance.push(trail_distance);
+                }
+                Note::Rotate(rotate) => {
+                    let distance1: f32 = self.find_distance_by_time(rotate.time - 30.0);
+                    let distancemid: f32 = self.find_distance_by_time(rotate.time);
+                    let distance2: f32 = self.find_distance_by_time(rotate.time + 30.0);   
+                    let trail_distance1: TrailDistance = TrailDistance::new(rotate.time - 30.0, rotate.degree % 180.0, 0.0, rotate.prev_curv, rotate.next_curv, distance1);
+                    self.phone_trail_distance.push(trail_distance1);
+                    let trail_distance_mid: TrailDistance = TrailDistance::new(rotate.time, rotate.degree % 180.0 + rotate.delta / 2.0, 0.0, rotate.prev_curv, rotate.next_curv, distancemid);
+                    self.phone_trail_distance.push(trail_distance_mid);
+                    let traildistance2: TrailDistance = TrailDistance::new(rotate.time + 30.0, rotate.degree % 180.0 + rotate.delta, 0.0, rotate.prev_curv, rotate.next_curv, distance2);
+                    self.phone_trail_distance.push(traildistance2);
+                }
+                _ => {}
+            }
+        }
+        let trail_distance: TrailDistance = TrailDistance::new(0.0, 90.0, 0.0, 0.0,0.0, 0.0);
+        self.phone_trail_distance.insert(0, trail_distance);
+
+        let last = self.phone_trail_distance.last().unwrap();
+        let distance: f32 = self.find_distance_by_time(last.time + 200.0);
+        let trail_distance: TrailDistance = TrailDistance::new(last.time + 200.0, 90.0, 0.0, last.prev_curv, last.next_curv, distance);
+        self.phone_trail_distance.push(trail_distance);
 
         self.sort_chart();
     }
@@ -768,6 +837,76 @@ impl Chart {
             distance2 = self.trail_distance[position2].distance;
             degree2 = self.trail_distance[position2].degree;
             curvature2 = self.trail_distance[position2].prev_curv;
+            
+            degree1 = degree1 % 360.0;
+            if degree1 < 0.0 {
+                degree1 += 360.0;
+            }
+            degree2 = degree2 % 360.0;
+            if degree2 < 0.0 {
+                degree2 += 360.0;
+            }
+
+            if degree1 >= 180.0 {
+                if (degree1 - (degree2 + 360.0)).abs() <= 90.0 {
+                    degree2 += 360.0;
+                } else if (degree1 - (degree2 + 180.0)).abs() <= 90.0 {
+                    degree2 += 180.0;
+                } else if (degree1 - (degree2 - 180.0)).abs() <= 90.0 {
+                    degree2 -= 180.0;
+                }
+            } else {
+                if (degree1 - (degree2 - 360.0)).abs() < 90.0 {
+                    degree2 -= 360.0;
+                } else if (degree1 - (degree2 - 180.0)).abs() < 90.0 {
+                    degree2 -= 180.0;
+                } else if (degree1 - (degree2 + 180.0)).abs() < 90.0 {
+                    degree2 += 180.0;
+                }
+            }
+
+            result = self.get_y_from_x(degree1, degree2, curvature1 / 100.0, curvature2 / 100.0, (distance - distance1) / (distance2 - distance1));
+            // result = result % 180.0;
+        } else {
+            result = degree1;
+        }
+        if result < 0.0 {
+            result += 360.0;
+        }
+        result = result % 180.0;
+        result
+    }
+
+    pub fn find_phone_degree_by_time(&self, time: f32) -> f32 {
+        let mut position1: usize;
+        let mut position2: usize;
+        let mut time1: f32;
+        let mut time2: f32;
+        let mut distance1: f32;
+        let mut distance: f32;
+        let mut distance2: f32;
+        let mut degree1: f32;
+        let mut degree2: f32;
+        let mut curvature1: f32;
+        let mut curvature2: f32;
+        let mut result: f32;
+        distance = self.find_distance_by_time(time);
+        position1 = self.find_pos_by_distance(&self.phone_trail_distance, distance, 1);
+        position2 = position1 + 1;
+        
+        time1 = self.phone_trail_distance[position1].time;
+        if time <= time1{
+            return self.phone_trail_distance[position1].degree;
+        }
+        distance1 = self.phone_trail_distance[position1].distance;
+        degree1 = self.phone_trail_distance[position1].degree + self.phone_trail_distance[position1].delta;
+        curvature1 = self.phone_trail_distance[position1].next_curv;
+
+        if position2 < self.phone_trail_distance.len() {
+            time2 = self.phone_trail_distance[position2].time;
+            distance2 = self.phone_trail_distance[position2].distance;
+            degree2 = self.phone_trail_distance[position2].degree;
+            curvature2 = self.phone_trail_distance[position2].prev_curv;
             
             degree1 = degree1 % 360.0;
             if degree1 < 0.0 {
