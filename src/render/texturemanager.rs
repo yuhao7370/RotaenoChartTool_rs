@@ -81,4 +81,13 @@ impl TextureManager {
         params.rotation = rotation *std::f32::consts::PI / 180.0;
         draw_texture_ex(self.texture(),x,y,WHITE,params,);
     }
+
+    pub fn middle_draw(&self, x: f32, y: f32, xscale: f32, yscale: f32, rotation: f32) {
+        let params = DrawTextureParams {
+            dest_size: Some(Vec2::new(self.width * xscale, self.height * yscale)),
+            rotation: rotation * std::f32::consts::PI / 180.0,
+            ..Default::default()
+        };
+        draw_texture_ex(self.texture(), x - self.width * xscale / 2.0, y - self.height * yscale / 2.0, WHITE, params);
+    }
 }
