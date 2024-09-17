@@ -1,7 +1,7 @@
 // speed.rs
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct SpeedDistance {
     pub time: f32,
     pub speed: f32,

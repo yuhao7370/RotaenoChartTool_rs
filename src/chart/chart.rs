@@ -13,6 +13,7 @@
 //      6(bomb)/time/degree
 // 		11(trail)/time/degree/delta/prev_curv/next_curv
 
+use core::time;
 use std::fs::File;
 use std::io::{self, BufRead, Error};
 use std::io::{Write, Read};
@@ -42,6 +43,28 @@ use super::note::Bomb;
 use super::speeddistance::{self, SpeedDistance};
 use super::traildistance::{self, TrailDistance};
 
+#[derive(Clone)]
+pub struct HitSound {
+    pub time: f32,
+    pub note_type: i32,
+    pub played: bool,
+} // 这里要注意，note_type跟谱面里不太一样，0是tap，1是flick，2是slide(谱面里2和3是slise)，3和4是rotateL和rotateR，5是catch
+
+impl HitSound {
+    pub fn new(time: f32, note_type: i32) -> Self {
+        Self {
+            time,
+            note_type,
+            played: false,
+        }
+    }
+
+    pub fn play(&mut self) {
+        self.played = true;
+    }
+}
+
+#[derive(Clone)]
 pub struct Chart {
     pub version: i32,
     pub offset: f32,
@@ -49,9 +72,46 @@ pub struct Chart {
     pub speed: Vec<Speed>,
     pub note: Vec<Note>,
     pub speed_distance: Vec<SpeedDistance>,
+    pub speed_distance_plain: Vec<SpeedDistance>,
     pub trail_distance: Vec<TrailDistance>,
+    pub trail_distance_plain: Vec<TrailDistance>,
+
+    pub hitsound_list: Vec<HitSound>,
+
     pub phone_trail_distance: Vec<TrailDistance>,
     // pub single_trail_distance: Vec<TrailDistance>,
+}
+
+pub struct ChartProperties {
+    pub start_chart_time: f32,
+    pub end_chart_time: f32,
+    pub start_distance: f32,
+    pub end_distance: f32,
+    pub show_distance: f32,
+    pub cur_degree: f32,
+}
+impl ChartProperties {
+    pub fn new() -> Self {
+        Self {
+            start_chart_time: 0.0,
+            end_chart_time: 0.0,
+            start_distance: 0.0,
+            end_distance: 0.0,
+            show_distance: 0.0,
+            cur_degree: 0.0,
+        }
+    }
+    
+    pub fn init(start_chart_time: f32, end_chart_time: f32, start_distance: f32, end_distance: f32, show_distance: f32, cur_degree: f32) -> Self {
+        Self {
+            start_chart_time,
+            end_chart_time,
+            start_distance,
+            end_distance,
+            show_distance,
+            cur_degree,
+        }
+    }
 }
 
 
@@ -78,7 +138,7 @@ impl DistanceGetter for TrailDistance {
     }
 }
 
-pub trait TimeGetter {
+pub trait       TimeGetter {
     fn get_time(&self) -> f32;
 }
 
@@ -121,10 +181,117 @@ impl Chart {
             speed: Vec::new(),
             note: Vec::new(),
             speed_distance: Vec::new(),
+            speed_distance_plain: Vec::new(),
             trail_distance: Vec::new(),
+            trail_distance_plain: Vec::new(),
+
+            hitsound_list: Vec::new(),
+
             phone_trail_distance: Vec::new(),
             // single_trail_distance: Vec::new(),
         }
+    }
+
+    pub fn update(&mut self) {
+        self.sort_chart();
+        self.distance_preprocessing();
+        self.update_plain_chart();
+        self.update_hitsound();
+    }
+
+    pub fn reset_hitsound(&mut self, chart_time: f32){
+        for i in 0..self.hitsound_list.len() {
+            if self.hitsound_list[i].time >= chart_time {
+                self.hitsound_list[i].played = false;
+            }
+            else{
+                self.hitsound_list[i].played = true;
+            }
+        }
+    }
+
+    pub fn update_hitsound(&mut self){
+        self.hitsound_list.clear();
+        for i in 0..self.note.len() {
+            let note = &self.note[i];
+            match note {
+                Note::Tap(tap) => { 
+                    let time = tap.time;
+                    let note_type = 0;
+                    let hitsound = HitSound::new(time, note_type);
+                    self.hitsound_list.push(hitsound);
+                },
+                Note::Flick(flick) => {
+                    let degree = flick.degree;
+                    let time = flick.time;
+                    let note_type = 1;
+                    let hitsound = HitSound::new(time, note_type);
+                    self.hitsound_list.push(hitsound);
+                },
+                Note::Slide(slide) => {
+                    let degree = slide.degree;
+                    let time = slide.time;
+                    let slidetype = slide.slidetype;
+                    if slide.slidetype != 3 {
+                        let hitsound = HitSound::new(time, slidetype);
+                        self.hitsound_list.push(hitsound);
+                    } else {
+                        let hitsound = HitSound::new(time, 2);
+                        self.hitsound_list.push(hitsound);
+                    }
+
+                    for j in 1..slide.amount {
+                        // 填4就是4分音符
+                        // let snaptime = 60.0 / self.bpm[0].bpm * 1000.0; // TODO chart get bpm
+                        let snaptime = 60.0 / self.find_bpm_by_time(slide.time) * 1000.0;
+                        let time = slide.time + j as f32 * snaptime / slide.snap as f32;
+                        let hitsound = HitSound::new(time, 2);
+                        self.hitsound_list.push(hitsound);
+                    }
+                },
+                Note::Rotate(rotate) => {
+                    let delta = rotate.delta;
+                    let time = rotate.time;
+                    let note_type = if delta < 0.0 { 3 } else { 4 };
+                    let hitsound = HitSound::new(time, note_type);
+                    self.hitsound_list.push(hitsound);
+                },
+                Note::Catch(catch) => {
+                    let time = catch.time;
+                    let note_type = 5;
+                    let hitsound = HitSound::new(time, note_type);
+                    self.hitsound_list.push(hitsound);
+                    // draw_text(&format!("deg: {}", deg), x, y, 20.0, GREEN);
+                },
+                Note::Trail(trail) => {
+                    continue;
+                },
+                Note::Bomb(bomb) => {
+                    continue;
+                },
+                _ => {}
+                
+            }
+        }
+        self.hitsound_list.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
+    }
+
+    pub fn update_plain_chart(&mut self){
+        let mut plain_chart = self.clone();
+        plain_chart.speed = vec![Speed::new(0.0, 1.0, 0)];
+        plain_chart.trail_distance = vec![];
+        plain_chart.speed_distance = vec![];
+        plain_chart.distance_preprocessing();
+        self.trail_distance_plain = plain_chart.trail_distance;
+        self.speed_distance_plain = plain_chart.speed_distance;
+    }
+
+    pub fn get_plain_chart(&self) -> Chart{
+        let mut plain_chart = self.clone();
+        plain_chart.speed = vec![Speed::new(0.0, 1.0, 0)];
+        plain_chart.trail_distance = plain_chart.trail_distance_plain.clone();
+        plain_chart.speed_distance = plain_chart.speed_distance_plain.clone();
+        plain_chart
     }
 
     pub fn load_chart_from_official(path: &str) -> io::Result<Self> {
@@ -225,6 +392,7 @@ impl Chart {
                 },
             }
         }
+        chart.update_hitsound();
         chart.distance_preprocessing();
         Ok(chart)
     }
@@ -259,6 +427,7 @@ impl Chart {
             chart.note.push(note);
         }
         chart.distance_preprocessing();
+        chart.update_hitsound();
         Ok(chart)
     }
 
@@ -292,67 +461,63 @@ impl Chart {
 
     // 这个函数的作用是根据实际时间计算谱面时间
     pub fn real_time_to_chart_time(&self, real_time: f32) -> f32 {
-        let chart_time: f32 = real_time * 31.25 * 32.0;
+        let chart_time: f32 = real_time * 1000.0;
         chart_time
     }
 
     // 这个函数的作用是根据谱面时间计算实际时间
     pub fn chart_time_to_real_time(&self, chart_time: f32) -> f32 {
-        let real_time: f32 = chart_time / (31.25 * 32.0);
+        let real_time: f32 = chart_time / (1000.0);
         real_time
     }
 
     // 这个函数的作用是根据实际时间计算小节数
     pub fn real_time_to_beat(&self, real_time: f32) -> f32 {
-        let mut beats: f32 = 0.0;
-        let mut last_real_time: f32 = 0.0;
-        let mut last_bpm: f32 = 0.0;
-    
-        for change in self.bpm.iter() {
-            let change_real_time = change.real_time();
-            if real_time < change_real_time {
-                beats += (real_time - last_real_time) / 60.0 * last_bpm;
+        let mut beat = 0.0;
+        let mut last_time = 0.0;
+        let mut last_bpm = 0.0;
+
+        for bpm in &self.bpm {
+            if real_time < bpm.time {
                 break;
-            } else {
-                beats += (change_real_time - last_real_time) / 60.0 * last_bpm;
-                last_real_time = change_real_time;
-                last_bpm = change.bpm;
             }
+            beat += (bpm.time - last_time) / 60.0 * last_bpm;
+            last_time = bpm.time;
+            last_bpm = bpm.bpm;
         }
-    
-        // 如果给定的时间超过了最后一个BPM变化的时间，我们需要计算剩余的小节数
-        if real_time > last_real_time {
-            beats += (real_time - last_real_time) / 60.0 * last_bpm;
+
+        // 如果 real_time 超过了最后一个 BPM 段的时间
+        if real_time > last_time {
+            beat += (real_time - last_time) / 60.0 * last_bpm;
         }
-    
-        beats
+
+        beat
     }
     
     // 这个函数的作用是根据小节数计算实际时间
-    pub fn beat_to_real_time(&self, beats: f32) -> f32 {
-        let mut remaining_beats: f32 = beats;
-        let mut last_real_time: f32 = 0.0;
-        let mut last_bpm: f32 = 0.0;
-    
-        for change in self.bpm.iter() {
-            let change_real_time = change.real_time();
-            let change_beats = (change_real_time - last_real_time) / 60.0 * last_bpm;
-    
-            if remaining_beats < change_beats {
-                return last_real_time + remaining_beats / last_bpm * 60.0;
-            } else {
-                remaining_beats -= change_beats;
-                last_real_time = change_real_time;
-                last_bpm = change.bpm;
+    pub fn beat_to_real_time(&self, beat: f32) -> f32 {
+        let mut real_time = 0.0;
+        let mut last_time = 0.0;
+        let mut last_bpm = 0.0;
+        let mut accumulated_beat = 0.0;
+
+        for bpm in &self.bpm {
+            let segment_beat = (bpm.time - last_time) / 60.0 * last_bpm;
+            if accumulated_beat + segment_beat > beat {
+                break;
             }
+            accumulated_beat += segment_beat;
+            real_time = bpm.time;
+            last_time = bpm.time;
+            last_bpm = bpm.bpm;
         }
-    
-        // 如果给定的节拍数超过了最后一个BPM变化的节拍数，我们需要计算剩余的时间
-        if remaining_beats > 0.0 {
-            last_real_time + remaining_beats / last_bpm * 60.0
-        } else {
-            last_real_time
+
+        // 如果 beat 超过了最后一个 BPM 段的节拍
+        if beat > accumulated_beat {
+            real_time += (beat - accumulated_beat) * 60.0 / last_bpm;
         }
+
+        real_time
     }
 
     // 这个函数的作用是根据谱面时间计算小节数
@@ -453,6 +618,11 @@ impl Chart {
         } else {
             d1 + (time - t1) * v1
         }
+    }
+
+    pub fn find_bpm_by_time(&self, chart_time: f32) -> f32 {
+        let index = self.find_pos_by_time(&self.bpm, chart_time, 0);
+        return self.bpm[index].bpm;
     }
 
     // 这个函数的作用是根据积分找到对应的时间

@@ -11,6 +11,7 @@ impl Tap {
     pub fn new(time: f32, degree: f32) -> Self {
         Self { time, degree }
     }
+
 }
 
 #[derive(Serialize, Deserialize, Clone)]

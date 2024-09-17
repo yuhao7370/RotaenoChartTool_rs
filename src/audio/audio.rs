@@ -1,13 +1,139 @@
 use camera::mouse;
-use rodio::OutputStreamHandle;
+use rodio::{Decoder, OutputStream, OutputStreamHandle, Sink, Source};
+use std::io::{BufReader, Cursor};
+use std::fs::File;
 use std::{
     path::Path,
     sync::{Arc, RwLock, Mutex},
 };
 use macroquad::prelude::*;
+use std::thread;
 
 use super::buffer_player::SamplesBuffer;
 use super::buffer_player::AudioController;
+
+pub struct HitSoundPlayer {
+    pub audio_data: Arc<Vec<u8>>,
+    pub stream_handle: OutputStreamHandle,
+}
+
+impl HitSoundPlayer {
+    pub fn new(file_path: &str, stream_handle: OutputStreamHandle) -> Self {
+        // 打开音频文件并读取到内存中
+        let file = File::open(file_path).unwrap();
+        let mut reader = BufReader::new(file);
+        let mut buffer = Vec::new();
+        std::io::copy(&mut reader, &mut buffer).unwrap();
+
+        HitSoundPlayer {
+            audio_data: Arc::new(buffer),
+            stream_handle,
+        }
+    }
+
+    pub fn play(&self, volume: f32) {
+        let audio_data = self.audio_data.clone();
+        let stream_handle = self.stream_handle.clone();
+
+        thread::spawn(move || {
+            let cursor = Cursor::new(audio_data.as_ref().clone());
+            let source = Decoder::new(cursor).unwrap();
+
+            let sink = Sink::try_new(&stream_handle).unwrap();
+            sink.set_volume(volume); // 设置音量
+            sink.append(source);
+            sink.play();
+            sink.sleep_until_end();
+        });
+    }
+}
+
+pub struct HitSoundManager {
+    pub tap_hitsound: HitSoundPlayer,
+    pub flick_hitsound: HitSoundPlayer,
+    pub slide_hitsound: HitSoundPlayer,
+    pub catch_hitsound: HitSoundPlayer,
+    pub rotate_L_hitsound: HitSoundPlayer,
+    pub rotate_R_hitsound: HitSoundPlayer,
+    pub active_sinks: Arc<Mutex<Vec<Arc<Sink>>>>, // 活跃的音效播放
+    pub volume: Arc<Mutex<f32>>, // 全局音量
+}
+
+impl HitSoundManager {
+    pub async fn init(
+        tap_hitsound_path: &str,
+        flick_hitsound_path: &str,
+        slide_hitsound_path: &str,
+        catch_hitsound_path: &str,
+        rotate_L_hitsound_path: &str,
+        rotate_R_hitsound_path: &str,
+        stream_handle: OutputStreamHandle,
+    ) -> Self {
+        let tap_hitsound = HitSoundPlayer::new(tap_hitsound_path, stream_handle.clone());
+        let flick_hitsound = HitSoundPlayer::new(flick_hitsound_path, stream_handle.clone());
+        let slide_hitsound = HitSoundPlayer::new(slide_hitsound_path, stream_handle.clone());
+        let catch_hitsound = HitSoundPlayer::new(catch_hitsound_path, stream_handle.clone());
+        let rotate_L_hitsound = HitSoundPlayer::new(rotate_L_hitsound_path, stream_handle.clone());
+        let rotate_R_hitsound = HitSoundPlayer::new(rotate_R_hitsound_path, stream_handle.clone());
+
+        Self {
+            tap_hitsound,
+            flick_hitsound,
+            slide_hitsound,
+            catch_hitsound,
+            rotate_L_hitsound,
+            rotate_R_hitsound,
+            active_sinks: Arc::new(Mutex::new(Vec::new())),
+            volume: Arc::new(Mutex::new(0.5)), // 默认音量为 0.5
+        }
+    }
+
+    pub fn set_volume(&self, volume: f32) {
+        let mut vol = self.volume.lock().unwrap();
+        *vol = volume;
+    }
+
+    pub fn play(&self, hitsound: &HitSoundPlayer) {
+        let volume = *self.volume.lock().unwrap();
+        let sink = Arc::new(Sink::try_new(&self.tap_hitsound.stream_handle).unwrap());
+        sink.set_volume(volume);
+        let audio_data = hitsound.audio_data.clone();
+        let cursor = Cursor::new(audio_data.as_ref().clone());
+        let source = Decoder::new(cursor).unwrap();
+        sink.append(source);
+        sink.play();
+
+        let mut active_sinks = self.active_sinks.lock().unwrap();
+        active_sinks.push(sink.clone());
+
+        // 移除已经播放完的音效
+        active_sinks.retain(|s| !s.empty());
+    }
+
+    pub fn play_tap(&self) {
+        self.play(&self.tap_hitsound);
+    }
+
+    pub fn play_flick(&self) {
+        self.play(&self.flick_hitsound);
+    }
+
+    pub fn play_slide(&self) {
+        self.play(&self.slide_hitsound);
+    }
+
+    pub fn play_catch(&self) {
+        self.play(&self.catch_hitsound);
+    }
+
+    pub fn play_rotate_L(&self) {
+        self.play(&self.rotate_L_hitsound);
+    }
+
+    pub fn play_rotate_R(&self) {
+        self.play(&self.rotate_R_hitsound);
+    }
+}
 
 pub struct AudioManager {
     pub controller: Arc<AudioController<i16>>,

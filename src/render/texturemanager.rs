@@ -43,6 +43,13 @@ impl TextureManager {
         Ok(Self { texture: blurred_texture, width: width as f32, height: height as f32 })
     }
 
+    pub fn default() -> Self {
+        // 创建一个默认的 TextureManager 实例
+        let texture = Texture2D::empty();
+        let width = 0.0;
+        let height = 0.0;
+        Self { texture, width, height }
+    }
 
     pub fn texture(&self) -> &Texture2D {
         &self.texture

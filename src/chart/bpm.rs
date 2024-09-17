@@ -1,7 +1,7 @@
 // bpm.rs
 use serde::{Serialize, Deserialize};
 
-#[derive(Serialize, Deserialize)]
+#[derive(Serialize, Deserialize, Clone, Copy)]
 pub struct BPM {
     pub time: f32,
     pub bpm: f32,
@@ -13,6 +13,6 @@ impl BPM {
     }
 
     pub fn real_time(&self) -> f32 {
-        self.time / (31.25 * 32.0)
+        self.time / (1000.0)
     }
 }
