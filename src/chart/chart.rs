@@ -14,6 +14,7 @@
 // 		11(trail)/time/degree/delta/prev_curv/next_curv
 
 use core::time;
+use std::char;
 use std::fs::File;
 use std::io::{self, BufRead, Error};
 use std::io::{Write, Read};
@@ -192,14 +193,14 @@ impl Chart {
         }
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self) { // 更新谱面
         self.sort_chart();
         self.distance_preprocessing();
         self.update_plain_chart();
         self.update_hitsound();
     }
 
-    pub fn reset_hitsound(&mut self, chart_time: f32){
+    pub fn reset_hitsound(&mut self, chart_time: f32){ // 根据时间重置打击音队列
         for i in 0..self.hitsound_list.len() {
             if self.hitsound_list[i].time >= chart_time {
                 self.hitsound_list[i].played = false;
@@ -210,7 +211,7 @@ impl Chart {
         }
     }
 
-    pub fn update_hitsound(&mut self){
+    pub fn update_hitsound(&mut self){ // 重新生成打击音队列
         self.hitsound_list.clear();
         for i in 0..self.note.len() {
             let note = &self.note[i];
@@ -276,7 +277,7 @@ impl Chart {
         self.hitsound_list.sort_by(|a, b| a.time.partial_cmp(&b.time).unwrap());
     }
 
-    pub fn update_plain_chart(&mut self){
+    pub fn update_plain_chart(&mut self){ // 更新没有速度事件的谱面
         let mut plain_chart = self.clone();
         plain_chart.speed = vec![Speed::new(0.0, 1.0, 0)];
         plain_chart.trail_distance = vec![];
@@ -286,7 +287,7 @@ impl Chart {
         self.speed_distance_plain = plain_chart.speed_distance;
     }
 
-    pub fn get_plain_chart(&self) -> Chart{
+    pub fn get_plain_chart(&self) -> Chart{ // 返回一个没有速度事件的谱面
         let mut plain_chart = self.clone();
         plain_chart.speed = vec![Speed::new(0.0, 1.0, 0)];
         plain_chart.trail_distance = plain_chart.trail_distance_plain.clone();
@@ -473,63 +474,53 @@ impl Chart {
 
     // 这个函数的作用是根据实际时间计算小节数
     pub fn real_time_to_beat(&self, real_time: f32) -> f32 {
-        let mut beat = 0.0;
-        let mut last_time = 0.0;
-        let mut last_bpm = 0.0;
-
-        for bpm in &self.bpm {
-            if real_time < bpm.time {
-                break;
-            }
-            beat += (bpm.time - last_time) / 60.0 * last_bpm;
-            last_time = bpm.time;
-            last_bpm = bpm.bpm;
-        }
-
-        // 如果 real_time 超过了最后一个 BPM 段的时间
-        if real_time > last_time {
-            beat += (real_time - last_time) / 60.0 * last_bpm;
-        }
-
-        beat
+        let chart_time: f32 = self.real_time_to_chart_time(real_time);
+        self.chart_time_to_beat(chart_time)
     }
     
     // 这个函数的作用是根据小节数计算实际时间
     pub fn beat_to_real_time(&self, beat: f32) -> f32 {
-        let mut real_time = 0.0;
-        let mut last_time = 0.0;
-        let mut last_bpm = 0.0;
-        let mut accumulated_beat = 0.0;
-
-        for bpm in &self.bpm {
-            let segment_beat = (bpm.time - last_time) / 60.0 * last_bpm;
-            if accumulated_beat + segment_beat > beat {
-                break;
-            }
-            accumulated_beat += segment_beat;
-            real_time = bpm.time;
-            last_time = bpm.time;
-            last_bpm = bpm.bpm;
-        }
-
-        // 如果 beat 超过了最后一个 BPM 段的节拍
-        if beat > accumulated_beat {
-            real_time += (beat - accumulated_beat) * 60.0 / last_bpm;
-        }
-
-        real_time
+        let chart_time: f32 = self.beat_to_chart_time(beat);
+        self.chart_time_to_real_time(chart_time)
     }
 
     // 这个函数的作用是根据谱面时间计算小节数
     pub fn chart_time_to_beat(&self, chart_time: f32) -> f32 {
-        let real_time: f32 = self.chart_time_to_real_time(chart_time);
-        self.real_time_to_beat(real_time)
+        let mut beat = 0.0;
+        let mut last_time = 0.0;
+        for i in 0..self.bpm.len() - 1 {
+            if chart_time >= self.bpm[i].time && chart_time < self.bpm[i + 1].time {
+                beat += (chart_time - last_time) / 60000.0 * self.bpm[i].bpm;
+                break;
+            }
+            beat += (self.bpm[i + 1].time - last_time) / 60000.0 * self.bpm[i].bpm;
+            last_time = self.bpm[i + 1].time;
+        }
+
+        if chart_time >= last_time {
+            beat += (chart_time - last_time) / 60000.0 * self.bpm.last().unwrap().bpm;
+        }
+
+        beat
     }
 
     // 这个函数的作用是根据小节数计算谱面时间
     pub fn beat_to_chart_time(&self, beats: f32) -> f32 {
-        let real_time: f32 = self.beat_to_real_time(beats);
-        self.real_time_to_chart_time(real_time)
+        let mut chart_time = 0.0;
+        let mut last_time = 0.0;
+        for i in 0..self.bpm.len() - 1 {
+            if beats >= (self.bpm[i].time - last_time) / 60000.0 * self.bpm[i].bpm && beats < (self.bpm[i + 1].time - last_time) / 60000.0 * self.bpm[i].bpm {
+                chart_time = last_time + (beats - (self.bpm[i].time - last_time) / 60000.0 * self.bpm[i].bpm) / self.bpm[i].bpm * 60000.0;
+                break;
+            }
+            last_time = self.bpm[i + 1].time;
+        }
+
+        if beats >= (self.bpm.last().unwrap().time - last_time) / 60000.0 * self.bpm.last().unwrap().bpm {
+            chart_time = last_time + (beats - (self.bpm.last().unwrap().time - last_time) / 60000.0 * self.bpm.last().unwrap().bpm) / self.bpm.last().unwrap().bpm * 60000.0;
+        }
+
+        chart_time
     }
 
     // 这个函数的作用是根据时间找到对应的数组下标，其中mode的值有四种情况
@@ -625,7 +616,8 @@ impl Chart {
         return self.bpm[index].bpm;
     }
 
-    // 这个函数的作用是根据积分找到对应的时间
+    // 这个函数的作用是根据积分找到对应的时间 
+    // TODO: 有问题， 速度为负数时会有多个对应时间解 少用这个函数
     pub fn find_time_by_distance(&self, distance: f32) -> f32 {
         let (mut p1, mut p2): (usize, usize);
         let (mut d1, mut d2, mut t1, mut t2, mut v1, mut v2): (f32, f32, f32, f32, f32, f32);
