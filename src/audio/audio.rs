@@ -12,6 +12,43 @@ use std::thread;
 use super::buffer_player::SamplesBuffer;
 use super::buffer_player::AudioController;
 
+use crate::chart::Chart;
+
+pub fn update_audio(progress: &mut AudioProgressBar, music: &mut AudioManager, chart: &mut Chart) {
+    if is_key_pressed(KeyCode::Space) {
+        music.toggle();
+        chart.reset_hitsound(music.get_time() * 1000.0);
+    }
+    let (delta_x, delta_y) = mouse_wheel();
+    if delta_y != 0.0 && !music.is_playing() {
+        
+        let time = if is_key_down(KeyCode::LeftControl){
+            (music.get_time() + delta_y / 60000.0).clamp(0.0, music.get_duration())
+        }
+        else if is_key_down(KeyCode::LeftAlt){
+            (music.get_time() + delta_y / 3000.0).clamp(0.0, music.get_duration())
+        }
+        else {
+            (music.get_time() + delta_y / 12000.0).clamp(0.0, music.get_duration())
+        };
+        music.set_time(time);
+    }
+
+    if progress.get_progress() >= 0.999 {
+        music.pause();
+    }
+
+    let update: bool = progress.update(music.is_playing());
+    if update {
+        music.set_time(music.get_duration() * progress.get_progress());
+        chart.reset_hitsound(music.get_time() * 1000.0);
+    }
+    else {
+        progress.set_progress(music.get_time() / music.get_duration());
+    }
+    progress.draw();
+}
+
 pub struct HitSoundPlayer {
     pub audio_data: Arc<Vec<u8>>,
     pub stream_handle: OutputStreamHandle,
@@ -57,6 +94,11 @@ pub struct HitSoundManager {
     pub rotate_R_hitsound: HitSoundPlayer,
     pub active_sinks: Arc<Mutex<Vec<Arc<Sink>>>>, // 活跃的音效播放
     pub volume: Arc<Mutex<f32>>, // 全局音量
+    pub tap_volume: Arc<Mutex<f32>>, // tap 音效音量
+    pub flick_volume: Arc<Mutex<f32>>, // flick 音效音量
+    pub slide_volume: Arc<Mutex<f32>>, // slide 音效音量
+    pub catch_volume: Arc<Mutex<f32>>, // catch 音效音量
+    pub rotate_volume: Arc<Mutex<f32>>, // rotate 音效音量
 }
 
 impl HitSoundManager {
@@ -84,13 +126,42 @@ impl HitSoundManager {
             rotate_L_hitsound,
             rotate_R_hitsound,
             active_sinks: Arc::new(Mutex::new(Vec::new())),
-            volume: Arc::new(Mutex::new(0.5)), // 默认音量为 0.5
+            volume: Arc::new(Mutex::new(0.1)), // 默认音量为 0.1
+            tap_volume: Arc::new(Mutex::new(0.1)),
+            flick_volume: Arc::new(Mutex::new(0.1)),
+            slide_volume: Arc::new(Mutex::new(0.1)),
+            catch_volume: Arc::new(Mutex::new(0.1)),
+            rotate_volume: Arc::new(Mutex::new(0.1)),
         }
     }
 
     pub fn set_volume(&self, volume: f32) {
-        let mut vol = self.volume.lock().unwrap();
-        *vol = volume;
+        *self.volume.lock().unwrap() = volume;
+        *self.tap_volume.lock().unwrap() = volume;
+        *self.flick_volume.lock().unwrap() = volume;
+        *self.slide_volume.lock().unwrap() = volume;
+        *self.catch_volume.lock().unwrap() = volume;
+        *self.rotate_volume.lock().unwrap() = volume;
+    }
+
+    pub fn set_tap_volume(&self, volume: f32) {
+        *self.tap_volume.lock().unwrap() = volume;
+    }
+
+    pub fn set_flick_volume(&self, volume: f32) {
+        *self.flick_volume.lock().unwrap() = volume;
+    }
+
+    pub fn set_slide_volume(&self, volume: f32) {
+        *self.slide_volume.lock().unwrap() = volume;
+    }
+
+    pub fn set_catch_volume(&self, volume: f32) {
+        *self.catch_volume.lock().unwrap() = volume;
+    }
+
+    pub fn set_rotate_volume(&self, volume: f32) {
+        *self.rotate_volume.lock().unwrap() = volume;
     }
 
     pub fn play(&self, hitsound: &HitSoundPlayer) {
@@ -260,10 +331,10 @@ impl AudioProgressBar {
         }
         if is_mouse_button_down(MouseButton::Left) && !playing {
             let (mouse_x, mouse_y) = mouse_position();
-            if (mouse_x >= self.center_x - self.width / 2.0 && mouse_x <= self.center_x + self.width / 2.0 && mouse_y >= self.center_y - self.height / 2.0 && mouse_y <= self.center_y + self.height / 2.0){
-                self.mouse_dragging = true;
-                // 如果在进度条范围内先更新是否拖动状态，再更新进度
-            }
+            // if (mouse_x >= self.center_x - self.width / 2.0 && mouse_x <= self.center_x + self.width / 2.0 && mouse_y >= self.center_y - self.height / 2.0 && mouse_y <= self.center_y + self.height / 2.0){
+            //     self.mouse_dragging = true;
+            //     // 如果在进度条范围内先更新是否拖动状态，再更新进度
+            // }
             if self.mouse_dragging{
                 // 限制鼠标拖动范围
                 let mouse_x: f32 = clamp(mouse_x, self.center_x - self.width / 2.0, self.center_x + self.width / 2.0);
