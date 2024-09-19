@@ -106,10 +106,13 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let this_distance = chart.find_distance_by_time(time);
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
                 let truedegree  = 450.0 - degree;
+                if radius <= 33.00{
+                    continue;
+                }
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
                 // 40,30 - 300,500
                 let yscale: f32 = (radius / 327.5) * 300.0 + 40.0;
-                let xscale: f32 = (radius / 327.5) * 420.0 + 30.0;
+                let xscale: f32 = (radius / 327.5) * 300.0 + 30.0; 
                 // draw_text(&format!("beat: {:.3}", chart.chart_time_to_beat(time)), x, y, 20.0, WHITE);
                 note_texture_manager.tap_texture.middle_draw(x, y, xscale / 750.0, yscale / 750.0, degree + 90.0);
             },
@@ -118,11 +121,14 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let time = flick.time;
                 let this_distance = chart.find_distance_by_time(time);
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
+                if radius <= 33.00{
+                    continue;
+                }
                 let truedegree  = 450.0 - degree;
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
 
                 let yscale: f32 = (radius / 327.5) * 300.0 + 40.0;
-                let xscale: f32 = (radius / 327.5) * 420.0 + 30.0;
+                let xscale: f32 = (radius / 327.5) * 300.0 + 30.0; 
                 note_texture_manager.flick_texture.middle_draw(x, y, xscale / 750.0, yscale / 750.0, degree + 90.0);
             },
             Note::Slide(slide) => {
@@ -133,7 +139,7 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
                 let truedegree  = 450.0 - degree;
                 let yscale: f32 = (radius / 327.5) * 300.0 + 40.0;
-                let xscale: f32 = (radius / 327.5) * 420.0 + 30.0;
+                let xscale: f32 = (radius / 327.5) * 300.0 + 30.0;  
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
                 if slide.time > chart_property.start_chart_time && slide.time < chart_property.end_chart_time{
                     match slidetype{
@@ -167,11 +173,14 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                     let degree = chart.get_y_from_x(slide.degree, enddegree, slide.prev_curv / 100.0, slide.next_curv / 100.0, progress);
                     // let degree = slide.degree + (enddegree - slide.degree) * j as f32 / slide.amount as f32;
                     let radius = distance_to_radius(327.5, this_distance_1, chart_property.start_distance, chart_property.end_distance);
+                    if radius <= 33.00{
+                        continue;
+                    }
                     let truedegree  = 450.0 - degree;
                     let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
                     // 40,30 - 300,500
                     let yscale: f32 = (radius / 327.5) * 300.0 + 40.0;
-                    let xscale: f32 = (radius / 327.5) * 420.0 + 30.0;
+                    let xscale: f32 = (radius / 327.5) * 300.0 + 30.0; 
                     note_texture_manager.small_slide_texture.middle_draw(x, y, xscale / 750.0, yscale / 750.0, degree + 90.0);
                 }
             },
@@ -181,6 +190,9 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let time = rotate.time;
                 let this_distance = chart.find_distance_by_time(time);
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
+                if radius <= 33.00{
+                    continue;
+                }
                 let truedegree  = 450.0 - degree;
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
                 // draw_circle(x, y, 5.0, WHITE);
@@ -195,11 +207,14 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let time = catch.time;
                 let this_distance = chart.find_distance_by_time(time);
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
+                if radius <= 33.00{
+                    continue;
+                }
                 let truedegree  = 450.0 - degree;
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
 
                 let yscale: f32 = (radius / 327.5) * 300.0 + 40.0;
-                let xscale: f32 = (radius / 327.5) * 420.0 + 30.0;
+                let xscale: f32 = (radius / 327.5) * 300.0 + 30.0; 
                 note_texture_manager.catch_texture.middle_draw(x, y, xscale / 750.0, yscale / 750.0, degree - 90.0);
                 // draw_text(&format!("deg: {}", deg), x, y, 20.0, GREEN);
             },
@@ -210,6 +225,9 @@ pub fn draw_note(chart: Chart, chart_property: &ChartProperties, note_texture_ma
                 let this_distance = chart.find_distance_by_time(time);
                 let mut truedegree  = 450.0 - degree;
                 let radius = distance_to_radius(327.5, this_distance, chart_property.start_distance, chart_property.end_distance);
+                if radius <= 33.00{
+                    continue;
+                }
 
                 let (x, y) = (600.0 + radius * truedegree.to_radians().cos(), 400.0 - radius * truedegree.to_radians().sin());
                 // draw_circle(x, y, 8.0, GREEN);

@@ -1,3 +1,5 @@
+use std::f32::RADIX;
+
 use macroquad::{time, ui::{self, Skin}};
 use crate::chart::{chart, note::{Catch, Flick, Note, Rotate, Slide, Tap, Trail}};
 use crate::chart::{chart::Chart, traildistance::TrailDistance};
@@ -23,17 +25,28 @@ pub fn distance_to_radius(max_radius: f32, distance: f32, start_distance: f32, e
     
         a * (b * (x - c)).exp() + d
     }
-    
-    max_radius * func(x1) // 使用 powf 函数的倒数来实现变化率随 (distance - start_distance) 减小而增大
+
+    // timer是当前播放时间
+    // starttime是note打击时间
+    // 假设流速10
+    // 半径100
+
+    // 那note距离圆心的距离为
+    // 100/1+(starttime-timer)*10
+    // fn func(x: f32) -> f32 {
+    //     1 / (1 + (distance - start_distance) * 10.0)
+    // }
+    let mut radius = max_radius / (1.0 + x * 11.0);
+    radius
 }
 
 pub fn draw_trail(chart: Chart, chart_property: &ChartProperties, debug: bool){
-    let color = Color::new(1.0, 1.0, 1.0, 0.5);
-    let debug_color_arc = Color::new(1.0, 0.0, 0.0, 0.5); // 画弧的颜色 白色
-    let debug_color_front = Color::new(0.0, 1.0, 0.0, 0.5); // 画前半部分的颜色 绿色
-    let debug_color_inner = Color::new(1.0, 1.0, 0.0, 0.5); // 画全部在内的颜色 黄色
-    let debug_color_mid = Color::new(0.0, 1.0, 1.0, 0.5); // 画中间部分的颜色 天蓝色
-    let debug_color_back = Color::new(0.0, 0.0, 1.0, 0.5); // 画后半部分的颜色 蓝色
+    let color = Color::new(1.0, 1.0, 1.0, 0.3);
+    let debug_color_arc = Color::new(1.0, 0.0, 0.0, 0.3); // 画弧的颜色 白色
+    let debug_color_front = Color::new(0.0, 1.0, 0.0, 0.3); // 画前半部分的颜色 绿色
+    let debug_color_inner = Color::new(1.0, 1.0, 0.0, 0.3); // 画全部在内的颜色 黄色
+    let debug_color_mid = Color::new(0.0, 1.0, 1.0, 0.3); // 画中间部分的颜色 天蓝色
+    let debug_color_back = Color::new(0.0, 0.0, 1.0, 0.3); // 画后半部分的颜色 蓝色
     let start_distance = chart_property.start_distance;
     let end_distance = chart_property.end_distance;
 
@@ -68,7 +81,7 @@ pub fn draw_trail(chart: Chart, chart_property: &ChartProperties, debug: bool){
                 let truedegree2  = 450.0 - degree2;
                 let (x2, y2) = (600.0 + radius2 * truedegree2.to_radians().cos(), 400.0 - radius2 * truedegree2.to_radians().sin());
                 
-                let thickness = 2.0 * radius1 / 327.5 + 2.0;
+                let thickness = (6.0 * radius1 / 327.5).max(1.0);
                 if debug {
                     draw_line(x1, y1, x2, y2, thickness, debug_color_inner);
                     draw_line(1200.0 - x1, 800.0 - y1, 1200.0 - x2, 800.0 - y2, thickness, debug_color_inner);
@@ -103,7 +116,7 @@ pub fn draw_trail(chart: Chart, chart_property: &ChartProperties, debug: bool){
                 let truedegree2  = 450.0 - degree2;
                 let (x2, y2) = (600.0 + radius2 * truedegree2.to_radians().cos(), 400.0 - radius2 * truedegree2.to_radians().sin());
             
-                let thickness = 2.0 * radius1 / 327.5 + 2.0;
+                let thickness = (4.0 * radius1 / 327.5).max(1.0);
                 if debug {
                     draw_line(x1, y1, x2, y2, thickness, debug_color_front);
                     draw_line(1200.0 - x1, 800.0 - y1, 1200.0 - x2, 800.0 - y2, thickness, debug_color_front);
@@ -139,7 +152,7 @@ pub fn draw_trail(chart: Chart, chart_property: &ChartProperties, debug: bool){
                 let truedegree2  = 450.0 - degree2;
                 let (x2, y2) = (600.0 + radius2 * truedegree2.to_radians().cos(), 400.0 - radius2 * truedegree2.to_radians().sin());
             
-                let thickness = 2.0 * radius1 / 327.5 + 2.0;
+                let thickness = (4.0 * radius1 / 327.5).max(1.0);
                 if debug {
                     draw_line(x1, y1, x2, y2, thickness, debug_color_back);
                     draw_line(1200.0 - x1, 800.0 - y1, 1200.0 - x2, 800.0 - y2, thickness, debug_color_back);
@@ -172,7 +185,7 @@ pub fn draw_trail(chart: Chart, chart_property: &ChartProperties, debug: bool){
                 let truedegree2  = 450.0 - degree2;
                 let (x2, y2) = (600.0 + radius2 * truedegree2.to_radians().cos(), 400.0 - radius2 * truedegree2.to_radians().sin());
             
-                let thickness = 2.0 * radius1 / 327.5 + 2.0;
+                let thickness = (4.0 * radius1 / 327.5).max(1.0);
                 
                 // if ((x1 - x2).powi(2) + (y1 - y2).powi(2)) > 10.0 {
                 //     println!("{:.2} {:.2} {:.2} {:.2}", x1, y1, x2, y2);
@@ -403,6 +416,10 @@ impl Slider {
 
     pub fn get_value(&self) -> i32 {
         self.value
+    }
+
+    pub fn set_index(&mut self, index: usize) {
+        self.value = self.options[index];
     }
 }
 

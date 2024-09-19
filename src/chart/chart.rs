@@ -785,6 +785,10 @@ impl Chart {
 
         }
 
+        if self.trail_distance.is_empty() {
+            self.trail_distance.push(TrailDistance::new(0.0, 90.0, 0.0, 0.0, 0.0, 0.0));
+        }
+
         if self.trail_distance[0].time != 0.0 {
             let start = self.trail_distance.first().unwrap();
             let trail_distance: TrailDistance = TrailDistance::new(0.0, start.degree, 0.0, start.prev_curv, start.next_curv, 0.0);
